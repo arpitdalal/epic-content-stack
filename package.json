@@ -16,18 +16,12 @@
     "prisma:studio": "prisma studio",
     "format": "prettier --write .",
     "lint": "eslint .",
-    "setup": "npm run build && prisma generate && prisma migrate deploy && prisma db seed && playwright install",
+    "setup": "npm run build && prisma generate && prisma migrate deploy && prisma db seed",
     "start": "cross-env NODE_ENV=production node .",
-    "start:mocks": "cross-env NODE_ENV=production MOCKS=true tsx .",
     "test": "vitest",
     "coverage": "vitest run --coverage",
-    "test:e2e": "npm run test:e2e:dev --silent",
-    "test:e2e:dev": "playwright test --ui",
-    "pretest:e2e:run": "npm run build",
-    "test:e2e:run": "cross-env CI=true playwright test",
-    "test:e2e:install": "npx playwright install --with-deps chromium",
     "typecheck": "tsc",
-    "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run"
+    "validate": "run-p \"test -- --run\" lint typecheck"
   },
   "eslintIgnore": [
     "/node_modules",
@@ -105,7 +99,6 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^8.4.1",
-    "@playwright/test": "^1.42.1",
     "@remix-run/dev": "2.8.1",
     "@remix-run/eslint-config": "2.8.1",
     "@remix-run/serve": "2.8.1",
