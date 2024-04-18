@@ -10,7 +10,6 @@ import * as Sentry from '@sentry/remix'
 import { isbot } from 'isbot'
 import { renderToPipeableStream } from 'react-dom/server'
 import { getEnv, init } from './utils/env.server.ts'
-import { getInstanceInfo } from './utils/litefs.server.ts'
 import { NonceProvider } from './utils/nonce-provider.ts'
 import { makeTimings } from './utils/timing.server.ts'
 
@@ -33,11 +32,8 @@ export default async function handleRequest(...args: DocRequestArgs) {
 		remixContext,
 		loadContext,
 	] = args
-	const { currentInstance, primaryInstance } = await getInstanceInfo()
 	responseHeaders.set('fly-region', process.env.FLY_REGION ?? 'unknown')
 	responseHeaders.set('fly-app', process.env.FLY_APP_NAME ?? 'unknown')
-	responseHeaders.set('fly-primary-instance', primaryInstance)
-	responseHeaders.set('fly-instance', currentInstance)
 
 	const callbackName = isbot(request.headers.get('user-agent'))
 		? 'onAllReady'
@@ -84,11 +80,8 @@ export default async function handleRequest(...args: DocRequestArgs) {
 }
 
 export async function handleDataRequest(response: Response) {
-	const { currentInstance, primaryInstance } = await getInstanceInfo()
 	response.headers.set('fly-region', process.env.FLY_REGION ?? 'unknown')
 	response.headers.set('fly-app', process.env.FLY_APP_NAME ?? 'unknown')
-	response.headers.set('fly-primary-instance', primaryInstance)
-	response.headers.set('fly-instance', currentInstance)
 
 	return response
 }
