@@ -1,54 +1,11 @@
-<div align="center">
-  <h1 align="center"><a href="https://www.epicweb.dev/epic-stack">The Epic Stack 🚀</a></h1>
-  <strong align="center">
-    Ditch analysis paralysis and start shipping Epic Web apps.
-  </strong>
-  <p>
-    This is an opinionated project starter and reference that allows teams to
-    ship their ideas to production faster and on a more stable foundation based
-    on the experience of <a href="https://kentcdodds.com">Kent C. Dodds</a> and
-    <a href="https://github.com/epicweb-dev/epic-stack/graphs/contributors">contributors</a>.
-  </p>
-</div>
+# Epic Stack for content sites
 
-```sh
-npx create-epic-app@latest
-```
+## Summary
+1. Commit [f964cbf](https://github.com/arpitdalal/epic-content-stack/commit/f964cbf0f4809016b41a7f9f95e9591bc2bcbfe4) uninstalls `playwright`, removes the `mocks`, `fixtures`, and `e2e` directories from `tests` directory. Also removes `app/routes/_auth+/auth.$provider.callback.test.ts` and `app/routes/users+/$username.test.tsx` e2e test files. Also modifies a few files, please see the commit history for more details.
+2. Commit [829014d](https://github.com/arpitdalal/epic-content-stack/commit/829014d41db6bdfc4b0e8fd7490bba98f0934e75) uninstalls a few packages, removes all the authentication related code, and modifies a few files, please see the commit history for more details. 
 
-[![The Epic Stack](https://github-production-user-asset-6210df.s3.amazonaws.com/1500684/246885449-1b00286c-aa3d-44b2-9ef2-04f694eb3592.png)](https://www.epicweb.dev/epic-stack)
+> [!IMPORTANT]
+> Remove the `other/litefs.yml` file and note that `fly.toml` has a different `internal_port` value. This is because the `litefs.yml` file was proxying the ports but since that is not the case anymore, we need to update the `internal_port` value in the `fly.toml` file.
 
-[The Epic Stack](https://www.epicweb.dev/epic-stack)
-
-<hr />
-
-## Watch Kent's Introduction to The Epic Stack
-
-[![Epic Stack Talk slide showing Flynn Rider with knives, the text "I've been around and I've got opinions" and Kent speaking in the corner](https://github-production-user-asset-6210df.s3.amazonaws.com/1500684/277818553-47158e68-4efc-43ae-a477-9d1670d4217d.png)](https://www.epicweb.dev/talks/the-epic-stack)
-
-["The Epic Stack" by Kent C. Dodds](https://www.epicweb.dev/talks/the-epic-stack)
-
-## Docs
-
-[Read the docs](https://github.com/epicweb-dev/epic-stack/blob/main/docs)
-(please 🙏).
-
-## Support
-
-- 🆘 Join the
-  [discussion on GitHub](https://github.com/epicweb-dev/epic-stack/discussions)
-  and the [KCD Community on Discord](https://kcd.im/discord).
-- 💡 Create an
-  [idea discussion](https://github.com/epicweb-dev/epic-stack/discussions/new?category=ideas)
-  for suggestions.
-- 🐛 Open a [GitHub issue](https://github.com/epicweb-dev/epic-stack/issues) to
-  report a bug.
-
-## Branding
-
-Want to talk about the Epic Stack in a blog post or talk? Great! Here are some
-assets you can use in your material:
-[EpicWeb.dev/brand](https://epicweb.dev/brand)
-
-## Thanks
-
-You rock 🪨
+## FYI
+- Not all the dead code and packages were removed to only stick to demonstrate removing DB and authentication related code.
