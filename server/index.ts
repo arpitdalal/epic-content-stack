@@ -1,7 +1,6 @@
-import crypto from 'crypto'
-import { createRequestHandler as _createRequestHandler } from '@remix-run/express'
-import { type ServerBuild, installGlobals } from '@remix-run/node'
-import * as Sentry from '@sentry/remix'
+import crypto from 'node:crypto'
+import { createRequestHandler } from '@react-router/express'
+import * as Sentry from '@sentry/node'
 import { ip as ipAddress } from 'address'
 import chalk from 'chalk'
 import closeWithGrace from 'close-with-grace'
@@ -11,21 +10,21 @@ import rateLimit from 'express-rate-limit'
 import getPort, { portNumbers } from 'get-port'
 import helmet from 'helmet'
 import morgan from 'morgan'
-
-installGlobals()
+import { type ServerBuild } from 'react-router'
 
 const MODE = process.env.NODE_ENV ?? 'development'
 const IS_PROD = MODE === 'production'
 const IS_DEV = MODE === 'development'
 const ALLOW_INDEXING = process.env.ALLOW_INDEXING !== 'false'
+const SENTRY_ENABLED = IS_PROD && process.env.SENTRY_DSN
 
-const createRequestHandler = IS_PROD
-	? Sentry.wrapExpressCreateRequestHandler(_createRequestHandler)
-	: _createRequestHandler
+if (SENTRY_ENABLED) {
+	void import('./utils/monitoring.js').then(({ init }) => init())
+}
 
 const viteDevServer = IS_PROD
 	? undefined
-	: await import('vite').then(vite =>
+	: await import('vite').then((vite) =>
 			vite.createServer({
 				server: { middlewareMode: true },
 			}),
@@ -41,6 +40,7 @@ app.set('trust proxy', true)
 
 // ensure HTTPS only (X-Forwarded-Proto comes from Fly)
 app.use((req, res, next) => {
+	if (req.method !== 'GET') return next()
 	const proto = req.get('X-Forwarded-Proto')
 	const host = getHost(req)
 	if (proto === 'http') {
@@ -68,9 +68,6 @@ app.use(compression())
 // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
 app.disable('x-powered-by')
 
-app.use(Sentry.Handlers.requestHandler())
-app.use(Sentry.Handlers.tracingHandler())
-
 if (viteDevServer) {
 	app.use(viteDevServer.middlewares)
 } else {
@@ -91,7 +88,13 @@ app.get(['/img/*', '/favicons/*'], (_req, res) => {
 	return res.status(404).send('Not found')
 })
 
-morgan.token('url', req => decodeURIComponent(req.url ?? ''))
+morgan.token('url', (req) => {
+	try {
+		return decodeURIComponent(req.url ?? '')
+	} catch {
+		return req.url ?? ''
+	}
+})
 app.use(
 	morgan('tiny', {
 		skip: (req, res) =>
@@ -143,67 +146,60 @@ app.use(
 // When running tests or running in development, we want to effectively disable
 // rate limiting because playwright tests are very fast and we don't want to
 // have to wait for the rate limit to reset between tests.
-const maxMultiple =
-	!IS_PROD || process.env.PLAYWRIGHT_TEST_BASE_URL ? 10_000 : 1
+const maxMultiple = !IS_PROD ? 10_000 : 1
 const rateLimitDefault = {
 	windowMs: 60 * 1000,
-	max: 1000 * maxMultiple,
+	limit: 1000 * maxMultiple,
 	standardHeaders: true,
 	legacyHeaders: false,
-	// Fly.io prevents spoofing of X-Forwarded-For
-	// so no need to validate the trustProxy config
 	validate: { trustProxy: false },
+	// Malicious users can spoof their IP address which means we should not default
+	// to trusting req.ip when hosted on Fly.io. However, users cannot spoof Fly-Client-Ip.
+	// When sitting behind a CDN such as cloudflare, replace fly-client-ip with the CDN
+	// specific header such as cf-connecting-ip
+	keyGenerator: (req: express.Request) => {
+		return req.get('fly-client-ip') ?? `${req.ip}`
+	},
 }
 
 const strongestRateLimit = rateLimit({
 	...rateLimitDefault,
 	windowMs: 60 * 1000,
-	max: 10 * maxMultiple,
+	limit: 10 * maxMultiple,
 })
 
 const strongRateLimit = rateLimit({
 	...rateLimitDefault,
 	windowMs: 60 * 1000,
-	max: 100 * maxMultiple,
+	limit: 100 * maxMultiple,
 })
 
 const generalRateLimit = rateLimit(rateLimitDefault)
 app.use((req, res, next) => {
-	const strongPaths = [
-		'/login',
-		'/signup',
-		'/verify',
-		'/admin',
-		'/onboarding',
-		'/reset-password',
-		'/settings/profile',
-		'/resources/login',
-		'/resources/verify',
-	]
+	const strongPaths = [] satisfies string[]
 	if (req.method !== 'GET' && req.method !== 'HEAD') {
-		if (strongPaths.some(p => req.path.includes(p))) {
+		if (strongPaths.some((p) => req.path.includes(p))) {
 			return strongestRateLimit(req, res, next)
 		}
 		return strongRateLimit(req, res, next)
-	}
-
-	// the verify route is a special case because it's a GET route that
-	// can have a token in the query string
-	if (req.path.includes('/verify')) {
-		return strongestRateLimit(req, res, next)
 	}
 
 	return generalRateLimit(req, res, next)
 })
 
 async function getBuild() {
-	const build = viteDevServer
-		? viteDevServer.ssrLoadModule('virtual:remix/server-build')
-		: // @ts-ignore this should exist before running the server
-			// but it may not exist just yet.
-			await import('#build/server/index.js')
-	// not sure how to make this happy 🤷‍♂️
-	return build as unknown as ServerBuild
+	try {
+		const build = viteDevServer
+			? await viteDevServer.ssrLoadModule('virtual:react-router/server-build')
+			: // @ts-expect-error - the file might not exist yet but it will
+				await import('../build/server/index.js')
+
+		return { build: build as unknown as ServerBuild, error: null }
+	} catch (error) {
+		// Catch error and return null to make express happy and avoid an unrecoverable crash
+		console.error('Error creating build:', error)
+		return { error: error, build: null as unknown as ServerBuild }
+	}
 }
 
 if (!ALLOW_INDEXING) {
@@ -221,7 +217,14 @@ app.all(
 			serverBuild: getBuild(),
 		}),
 		mode: MODE,
-		build: getBuild,
+		build: async () => {
+			const { error, build } = await getBuild()
+			// gracefully "catch" the error
+			if (error) {
+				throw error
+			}
+			return build
+		},
 	}),
 )
 
@@ -263,8 +266,16 @@ ${chalk.bold('Press Ctrl+C to stop')}
 	)
 })
 
-closeWithGrace(async () => {
+closeWithGrace(async ({ err }) => {
 	await new Promise((resolve, reject) => {
-		server.close(e => (e ? reject(e) : resolve('ok')))
+		server.close((e) => (e ? reject(e) : resolve('ok')))
 	})
+	if (err) {
+		console.error(chalk.red(err))
+		console.error(chalk.red(err.stack))
+		if (SENTRY_ENABLED) {
+			Sentry.captureException(err)
+			await Sentry.flush(500)
+		}
+	}
 })

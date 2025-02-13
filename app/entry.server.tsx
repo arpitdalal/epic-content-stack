@@ -1,26 +1,24 @@
-import { PassThrough } from 'stream'
+import { PassThrough } from 'node:stream'
+import { createReadableStreamFromReadable } from '@react-router/node'
+
+import * as Sentry from '@sentry/node'
+import chalk from 'chalk'
+import { isbot } from 'isbot'
+import { renderToPipeableStream } from 'react-dom/server'
 import {
-	createReadableStreamFromReadable,
+	ServerRouter,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
 	type HandleDocumentRequestFunction,
-} from '@remix-run/node'
-import { RemixServer } from '@remix-run/react'
-import * as Sentry from '@sentry/remix'
-import { isbot } from 'isbot'
-import { renderToPipeableStream } from 'react-dom/server'
+} from 'react-router'
 import { getEnv, init } from './utils/env.server.ts'
 import { NonceProvider } from './utils/nonce-provider.ts'
 import { makeTimings } from './utils/timing.server.ts'
 
-const ABORT_DELAY = 5000
+export const streamTimeout = 5000
 
 init()
 global.ENV = getEnv()
-
-if (ENV.MODE === 'production' && ENV.SENTRY_DSN) {
-	import('./utils/monitoring.server.ts').then(({ init }) => init())
-}
 
 type DocRequestArgs = Parameters<HandleDocumentRequestFunction>
 
@@ -29,17 +27,21 @@ export default async function handleRequest(...args: DocRequestArgs) {
 		request,
 		responseStatusCode,
 		responseHeaders,
-		remixContext,
+		reactRouterContext,
 		loadContext,
 	] = args
 	responseHeaders.set('fly-region', process.env.FLY_REGION ?? 'unknown')
 	responseHeaders.set('fly-app', process.env.FLY_APP_NAME ?? 'unknown')
 
+	if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
+		responseHeaders.append('Document-Policy', 'js-profiling')
+	}
+
 	const callbackName = isbot(request.headers.get('user-agent'))
 		? 'onAllReady'
 		: 'onShellReady'
 
-	const nonce = String(loadContext.cspNonce) ?? undefined
+	const nonce = loadContext.cspNonce?.toString() ?? ''
 	return new Promise(async (resolve, reject) => {
 		let didError = false
 		// NOTE: this timing will only include things that are rendered in the shell
@@ -48,7 +50,11 @@ export default async function handleRequest(...args: DocRequestArgs) {
 
 		const { pipe, abort } = renderToPipeableStream(
 			<NonceProvider value={nonce}>
-				<RemixServer context={remixContext} url={request.url} />
+				<ServerRouter
+					nonce={nonce}
+					context={reactRouterContext}
+					url={request.url}
+				/>
 			</NonceProvider>,
 			{
 				[callbackName]: () => {
@@ -66,16 +72,14 @@ export default async function handleRequest(...args: DocRequestArgs) {
 				onShellError: (err: unknown) => {
 					reject(err)
 				},
-				onError: (error: unknown) => {
+				onError: () => {
 					didError = true
-
-					console.error(error)
 				},
 				nonce,
 			},
 		)
 
-		setTimeout(abort, ABORT_DELAY)
+		setTimeout(abort, streamTimeout + 5000)
 	})
 }
 
@@ -90,9 +94,16 @@ export function handleError(
 	error: unknown,
 	{ request }: LoaderFunctionArgs | ActionFunctionArgs,
 ): void {
+	// Skip capturing if the request is aborted as Remix docs suggest
+	// Ref: https://remix.run/docs/en/main/file-conventions/entry.server#handleerror
+	if (request.signal.aborted) {
+		return
+	}
 	if (error instanceof Error) {
-		Sentry.captureRemixServerException(error, 'remix.server', request)
+		console.error(chalk.red(error.stack))
+		void Sentry.captureException(error)
 	} else {
+		console.error(error)
 		Sentry.captureException(error)
 	}
 }

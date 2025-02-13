@@ -1,11 +1,11 @@
-import { ProfilingIntegration } from '@sentry/profiling-node'
-import * as Sentry from '@sentry/remix'
+import * as Sentry from '@sentry/node'
+import { nodeProfilingIntegration } from '@sentry/profiling-node'
 
 export function init() {
 	Sentry.init({
-		dsn: ENV.SENTRY_DSN,
-		environment: ENV.MODE,
-		tracesSampleRate: ENV.MODE === 'production' ? 1 : 0,
+		dsn: process.env.SENTRY_DSN,
+		environment: process.env.NODE_ENV,
+		tracesSampleRate: process.env.NODE_ENV === 'production' ? 1 : 0,
 		denyUrls: [
 			/\/resources\/healthcheck/,
 			// TODO: be smarter about the public assets...
@@ -16,13 +16,14 @@ export function init() {
 			/\/favicon.ico/,
 			/\/site\.webmanifest/,
 		],
-		integrations: [
-			new Sentry.Integrations.Http({ tracing: true }),
-			new ProfilingIntegration(),
-		],
+		integrations: [Sentry.httpIntegration(), nodeProfilingIntegration()],
 		tracesSampler(samplingContext) {
 			// ignore healthcheck transactions by other services (consul, etc.)
-			if (samplingContext.request?.url?.includes('/resources/healthcheck')) {
+			if (
+				samplingContext.normalizedRequest?.url?.includes(
+					'/resources/healthcheck',
+				)
+			) {
 				return 0
 			}
 			return 1

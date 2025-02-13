@@ -1,5 +1,5 @@
-import { useNavigation } from '@remix-run/react'
 import { useEffect, useRef, useState } from 'react'
+import { useNavigation } from 'react-router'
 import { useSpinDelay } from 'spin-delay'
 import { cn } from '#app/utils/misc.tsx'
 import { Icon } from './ui/icon.tsx'
@@ -22,7 +22,7 @@ function EpicProgress() {
 			.getAnimations()
 			.map(({ finished }) => finished)
 
-		Promise.allSettled(animationPromises).then(() => {
+		void Promise.allSettled(animationPromises).then(() => {
 			if (!delayedPending) setAnimationComplete(true)
 		})
 	}, [delayedPending])
