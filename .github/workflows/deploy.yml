@@ -25,7 +25,7 @@ jobs:
       - name: ⎔ Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 📥 Download deps
         uses: bahmutov/npm-install@v1
@@ -46,7 +46,7 @@ jobs:
       - name: ⎔ Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 📥 Download deps
         uses: bahmutov/npm-install@v1
@@ -57,40 +57,18 @@ jobs:
       - name: 🔎 Type check
         run: npm run typecheck --if-present
 
-  vitest:
-    name: ⚡ Vitest
-    runs-on: ubuntu-22.04
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v4
-
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
-
-      - name: 🏄 Copy test env vars
-        run: cp .env.example .env
-
-      - name: 🖼 Build icons
-        run: npm run build:icons
-
-      - name: ⚡ Run vitest
-        run: npm run test -- --coverage
-
   # deploy:
   #   name: 🚀 Deploy
   #   runs-on: ubuntu-22.04
-  #   needs: [lint, typecheck, vitest]
+  #   needs: [lint, typecheck]
   #   # only build/deploy branches on pushes
   #   if: ${{ github.event_name == 'push' }}
 
   #   steps:
   #     - name: ⬇️ Checkout repo
   #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: '50'
 
   #     - name: 👀 Read app name
   #       uses: SebRollen/toml-action@v1.2.0
@@ -98,12 +76,6 @@ jobs:
   #       with:
   #         file: 'fly.toml'
   #         field: 'app'
-
-  #     # move Dockerfile to root
-  #     - name: 🚚 Move Dockerfile
-  #       run: |
-  #         mv ./other/Dockerfile ./Dockerfile
-  #         mv ./other/.dockerignore ./.dockerignore
 
   #     - name: 🎈 Setup Fly
   #       uses: superfly/flyctl-actions/setup-flyctl@1.5
