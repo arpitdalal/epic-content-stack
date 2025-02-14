@@ -5,9 +5,6 @@ export default [
 	...defaultConfig,
 	// add custom config objects here:
 	{
-		rules: { 'react-hooks/rules-of-hooks': 'off' },
-	},
-	{
 		ignores: ['.react-router/*'],
 	},
 ]
